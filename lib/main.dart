@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const DrinkWaterApp());
@@ -36,11 +37,35 @@ class _DrinkWaterDashboardState extends State<DrinkWaterDashboard> {
   int _currentIntake = 0;
   final int _dailyGoal = 2500;
 
+  static const String _intakeKey = 'daily_water_intake';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIntake();
+  }
+
+  // Load saved intake from shared preferences
+  Future<void> _loadIntake() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _currentIntake = prefs.getInt(_intakeKey) ?? 0;
+    });
+  }
+
+  // Save intake to shared preferences
+  Future<void> _saveIntake(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_intakeKey, value);
+  }
+
   // Add water helper
   void _addWater(int amount) {
     setState(() {
       _currentIntake = (_currentIntake + amount).clamp(0, 9999);
     });
+    _saveIntake(_currentIntake);
+    
     // Trigger a light haptic-like visual feedback or a nice toast
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -68,6 +93,8 @@ class _DrinkWaterDashboardState extends State<DrinkWaterDashboard> {
     setState(() {
       _currentIntake = 0;
     });
+    _saveIntake(0);
+
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -442,7 +469,6 @@ class _DrinkWaterDashboardState extends State<DrinkWaterDashboard> {
 
                 const SizedBox(height: 24),
 
-                // 3. Interaction - Row of Styled ElevatedButtons
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -457,35 +483,43 @@ class _DrinkWaterDashboardState extends State<DrinkWaterDashboard> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        // Glass button: +250ml
-                        Expanded(
-                          child: _buildLogButton(
-                            label: '+250 ml',
-                            icon: Icons.local_cafe_rounded,
-                            amount: 250,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        // Bottle button: +500ml
-                        Expanded(
-                          child: _buildLogButton(
-                            label: '+500 ml',
-                            icon: Icons.local_drink_rounded,
-                            amount: 500,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        // Thermos button: +750ml
-                        Expanded(
-                          child: _buildLogButton(
-                            label: '+750 ml',
-                            icon: Icons.wine_bar_rounded,
-                            amount: 750,
-                          ),
-                        ),
-                      ],
+                    Builder(
+                      builder: (context) {
+                        final double availableWidth = MediaQuery.of(context).size.width - 48.0; // Subtract horizontal padding (24 * 2)
+                        const double minButtonWidth = 95.0;
+                        const double spacing = 12.0;
+                        
+                        final bool fitThree = (minButtonWidth * 3 + spacing * 2) <= availableWidth;
+                        final double buttonWidth = fitThree 
+                            ? (availableWidth - spacing * 2) / 3 
+                            : (availableWidth - spacing) / 2;
+
+                        return Wrap(
+                          spacing: spacing,
+                          runSpacing: spacing,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            _buildLogButton(
+                              label: '+250 ml',
+                              icon: Icons.local_cafe_rounded,
+                              amount: 250,
+                              width: buttonWidth,
+                            ),
+                            _buildLogButton(
+                              label: '+500 ml',
+                              icon: Icons.local_drink_rounded,
+                              amount: 500,
+                              width: buttonWidth,
+                            ),
+                            _buildLogButton(
+                              label: '+750 ml',
+                              icon: Icons.wine_bar_rounded,
+                              amount: 750,
+                              width: buttonWidth,
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -528,9 +562,12 @@ class _DrinkWaterDashboardState extends State<DrinkWaterDashboard> {
     required String label,
     required IconData icon,
     required int amount,
+    required double width,
   }) {
-    return ElevatedButton(
-      onPressed: () => _addWater(amount),
+    return SizedBox(
+      width: width,
+      child: ElevatedButton(
+        onPressed: () => _addWater(amount),
       style: ElevatedButton.styleFrom(
         foregroundColor: Colors.white,
         backgroundColor: Colors.white.withOpacity(0.06),
@@ -541,20 +578,21 @@ class _DrinkWaterDashboardState extends State<DrinkWaterDashboard> {
           side: BorderSide(color: Colors.white.withOpacity(0.08), width: 1.5),
         ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: const Color(0xFF00b4d8), size: 24),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: const Color(0xFF00b4d8), size: 24),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
